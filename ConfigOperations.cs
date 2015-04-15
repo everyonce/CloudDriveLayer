@@ -65,7 +65,7 @@ namespace CloudDriveLayer.ConfigOperations
             if (String.IsNullOrWhiteSpace(cloudMainFolderId) || cloudMainFolderId == rootFolderId)
             {
                 if (String.IsNullOrWhiteSpace(rootFolderId))
-                    rootFolderId = CloudDriveOperations.getRootFolder(this, _cloudMainFolderName).data[0].id;
+                    rootFolderId = CloudDriveOperations.getRootFolder(this).data[0].id;
                 string[] pathExplode = _cloudMainFolderName.Split(new char[] { '\\' });
                 var currentRoot = rootFolderId;
                 foreach (String folderName in pathExplode )

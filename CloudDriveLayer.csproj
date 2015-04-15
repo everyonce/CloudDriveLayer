@@ -51,7 +51,6 @@
     <Compile Include="CloudDriveOperations.cs" />
     <Compile Include="ConfigOperations.cs" />
     <Compile Include="MimeTypeMap.cs" />
-    <Compile Include="ProgressableStreamContent.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
   <ItemGroup>

@@ -71,7 +71,11 @@ namespace CloudDriveLayer.CloudDriveModels
         }
         public class CloudDriveFolder : CloudDriveNode
         {
-
+            public List<CloudDriveNode> children;
+            public CloudDriveFolder()
+            {
+                children = new List<CloudDriveNode>();
+            }
         }
         public class CloudDriveFile : CloudDriveNode
         {

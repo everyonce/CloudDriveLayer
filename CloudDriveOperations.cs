@@ -76,11 +76,16 @@ namespace CloudDriveLayer
             if (String.IsNullOrWhiteSpace(parentId) || String.IsNullOrWhiteSpace(name)) return new CloudDriveListResponse<CloudDriveFolder>();
             return listSearch<CloudDriveFolder>(config, "nodes/" + parentId + "/children?filters=kind:FOLDER AND name:" + name);
         }
+        public static CloudDriveListResponse<CloudDriveNode> getChildren(ConfigOperations.ConfigData config, String parentId)
+        {
+            if (String.IsNullOrWhiteSpace(parentId)) return new CloudDriveListResponse<CloudDriveNode>();
+            return listSearch<CloudDriveNode>(config, "nodes/" + parentId + "/children");
+        }
         public static CloudDriveListResponse<CloudDriveFolder> getFoldersByName(ConfigOperations.ConfigData config, String name)
         {
             return listSearch<CloudDriveFolder>(config, "nodes?filters=kind:FOLDER AND name:" + name);
         }
-        public static CloudDriveListResponse<CloudDriveFolder> getRootFolder(ConfigOperations.ConfigData config, String name)
+        public static CloudDriveListResponse<CloudDriveFolder> getRootFolder(ConfigOperations.ConfigData config)
         {
             return listSearch<CloudDriveFolder>(config, "nodes?filters=kind:FOLDER AND isRoot:true");
         }
@@ -120,8 +125,6 @@ namespace CloudDriveLayer
                 MultipartFormDataContent form = new MultipartFormDataContent();
                 form.Add(new StringContent(myMetaData), "metadata");
 
-                Download myDownload = new Download();
-                //var fileStreamContent = new ProgressableStreamContent(, 8096, myDownload);
                 var fileStreamContent = new StreamContent(file);
                 fileStreamContent.Headers.ContentType = new MediaTypeHeaderValue(MimeTypeMap.MimeTypeMap.GetMimeType(Path.GetExtension(fullFilePath)));
                 form.Add(fileStreamContent, "content", Path.GetFileName(fullFilePath));
