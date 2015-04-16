@@ -1,4 +1,6 @@
-﻿using System;
+﻿using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -63,10 +65,11 @@ namespace CloudDriveLayer.CloudDriveModels
             public DateTime createdDate;
             public string status;
             public ContentProperties contentProperties;
-
+            public Dictionary<string, JObject> properties {get; set;}
             public CloudDriveNode()
             {
                 contentProperties = new ContentProperties();
+                properties = new Dictionary<string, JObject>();
             }
         }
         public class CloudDriveFolder : CloudDriveNode
@@ -87,5 +90,8 @@ namespace CloudDriveLayer.CloudDriveModels
             public String nextToken;
             public List<T> data;
         }
-
+        public class propertySet
+        {
+            
+        }
 }

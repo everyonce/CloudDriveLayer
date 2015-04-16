@@ -23,20 +23,23 @@ namespace CloudDriveLayer.ConfigOperations
         public String cloudMainFolderId { get; set; }
         public MetaDataResponse metaData { get; set; }
         public DateTime lastMetaDataCheck { get; set; }
-        public String _appKey;
-        public String _appSecret;
-        public String _cloudMainFolderName;
-        public String _oauthxRedirect;
-        public String _oauthxBase;
-        public ConfigData(String appKey, String appSecret, String cloudRoot, String oauthXRedirect, String oauthXBase)
+        private String _appKey;
+        private String _appSecret;
+        private String _cloudMainFolderName;
+        private String _oauthxRedirect;
+        private String _oauthxBase;
+        public ConfigData()
+        {
+            lastToken = new AuthTokenResponse();
+            metaData = new MetaDataResponse();
+        }
+        public void updateValues(String appKey, String appSecret, String cloudRoot, String oauthXRedirect, String oauthXBase)
         {
             _appKey = appKey;
             _appSecret = appSecret;
             _cloudMainFolderName = cloudRoot;
             _oauthxRedirect = oauthXRedirect;
             _oauthxBase = oauthXBase;
-            lastToken = new AuthTokenResponse();
-            metaData = new MetaDataResponse();
         }
         public void updateTokens(Action saveConfig)
         {

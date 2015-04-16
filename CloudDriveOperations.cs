@@ -42,10 +42,29 @@ namespace CloudDriveLayer
         public static CloudDriveListResponse<T> listSearch<T>(ConfigOperations.ConfigData config, String command)
         {
             HttpClient request = createAuthenticatedClient(config, config.metaData.metadataUrl);
-
-                String mycontent = request.GetStringAsync(command).Result;
-
+            String mycontent = request.GetStringAsync(command).Result;
             return JsonConvert.DeserializeObject<CloudDriveListResponse<T>>(mycontent);
+        }
+        public static CloudDriveListResponse<CloudDriveFolder> listFolderSearchByName(ConfigOperations.ConfigData config, String command, String name)
+        {
+            CloudDriveListResponse<CloudDriveFolder> initialSearch = listSearch<CloudDriveFolder>(config, command);
+            initialSearch.data = initialSearch.data.Where(e => e.name == name).ToList();
+            initialSearch.count = initialSearch.data.Count;
+            return initialSearch;
+        }
+        public static CloudDriveListResponse<CloudDriveFile>   listFileSearchByName  (ConfigOperations.ConfigData config, String command, String name)
+        {
+            CloudDriveListResponse<CloudDriveFile> initialSearch = listSearch<CloudDriveFile>(config, command);
+            initialSearch.data = initialSearch.data.Where(e => e.name == name).ToList();
+            initialSearch.count = initialSearch.data.Count;
+            return initialSearch;
+        }
+        public static CloudDriveListResponse<CloudDriveNode>   listNodeSearchByName  (ConfigOperations.ConfigData config, String command, String name)
+        {
+            CloudDriveListResponse<CloudDriveNode> initialSearch = listSearch<CloudDriveNode>(config, command);
+            initialSearch.data = initialSearch.data.Where(e => e.name == name).ToList();
+            initialSearch.count = initialSearch.data.Count;
+            return initialSearch;
         }
         public static T nodeSearch<T>(ConfigOperations.ConfigData config, String command)
         {
@@ -75,7 +94,8 @@ namespace CloudDriveLayer
         public static CloudDriveListResponse<CloudDriveFolder> getChildFolderByName(ConfigOperations.ConfigData config, String parentId, String name)
         {
             if (String.IsNullOrWhiteSpace(parentId) || String.IsNullOrWhiteSpace(name)) return new CloudDriveListResponse<CloudDriveFolder>();
-            return listSearch<CloudDriveFolder>(config, "nodes/" + parentId + "/children?filters=kind:FOLDER AND name:" + name);
+            return listFolderSearchByName(config, "nodes/" + parentId + "/children?filters=kind:FOLDER AND name:" + name, name);
+
         }
         public static CloudDriveListResponse<CloudDriveNode> getChildren(ConfigOperations.ConfigData config, String parentId)
         {
@@ -84,7 +104,7 @@ namespace CloudDriveLayer
         }
         public static CloudDriveListResponse<CloudDriveFolder> getFoldersByName(ConfigOperations.ConfigData config, String name)
         {
-            return listSearch<CloudDriveFolder>(config, "nodes?filters=kind:FOLDER AND name:" + name);
+            return listFolderSearchByName(config, "nodes?filters=kind:FOLDER AND name:" + name, name);
         }
         public static CloudDriveListResponse<CloudDriveFolder> getRootFolder(ConfigOperations.ConfigData config)
         {
@@ -96,15 +116,15 @@ namespace CloudDriveLayer
         }
         public static CloudDriveListResponse<CloudDriveFile> getFileByNameAndParentId(ConfigOperations.ConfigData config, String parentId, String name)
         {
-            return listSearch<CloudDriveFile>(config, "nodes/" + parentId + "/children?filters=kind:FILE AND name:" + name);
+            return listFileSearchByName(config, "nodes/" + parentId + "/children?filters=kind:FILE AND name:" + name, name);
         }
         public static CloudDriveListResponse<CloudDriveFile> getFilesByName(ConfigOperations.ConfigData config, String name)
         {
-            return listSearch<CloudDriveFile>(config, "nodes?filters=kind:FILE AND name:'" + name + "'");
+            return listFileSearchByName(config, "nodes?filters=kind:FILE AND name:'" + name + "'", name);
         }
         public static CloudDriveListResponse<CloudDriveFile> getFileByNameAndMd5(ConfigOperations.ConfigData config, String name, String md5)
         {
-            return listSearch<CloudDriveFile>(config, "nodes?filters=kind:FILE AND name:'" + name + "' AND contentProperties.md5:" + md5);
+            return listFileSearchByName(config, "nodes?filters=kind:FILE AND name:'" + name + "' AND contentProperties.md5:" + md5, name);
         }
         public static CloudDriveFile getFile(ConfigOperations.ConfigData config, String id)
         {
@@ -194,7 +214,7 @@ namespace CloudDriveLayer
             CacheItem item = folderCache.GetCacheItem(currentPath);
             if (item == null)
             {
-                var thisNode = CloudDriveOperations.getChildFolderByName(_config, findFromId, currentFolder).data[0];
+                CloudDriveFolder thisNode = (CloudDriveFolder)CloudDriveOperations.getChildFolderByName(_config, findFromId, currentFolder).data[0];
                 thisNode.children = CloudDriveOperations.getChildren(_config, thisNode.id).data;
                 item = new CacheItem(currentPath, thisNode);
                 folderCache.Add(item, cachePolicy);
