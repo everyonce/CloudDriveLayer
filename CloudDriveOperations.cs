@@ -7,6 +7,7 @@ using System.Linq;
 using System.Net;
 using System.Net.Http;
 using System.Net.Http.Headers;
+using System.Runtime.Caching;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -184,6 +185,24 @@ namespace CloudDriveLayer
         public static void uploadFileContent(ConfigOperations.ConfigData config, string localFilename, string p)
         {
             throw new NotImplementedException();
+        }
+        public static CloudDriveFolder getFolderFromPath(ConfigOperations.ConfigData _config, Queue<String> folders, string findFromId, List<String> traverseQueue, MemoryCache folderCache, CacheItemPolicy cachePolicy)
+        {
+            var currentFolder = folders.Dequeue();
+            traverseQueue.Add(currentFolder);
+            var currentPath = String.Join("\\", traverseQueue);
+            CacheItem item = folderCache.GetCacheItem(currentPath);
+            if (item == null)
+            {
+                var thisNode = CloudDriveOperations.getChildFolderByName(_config, findFromId, currentFolder).data[0];
+                thisNode.children = CloudDriveOperations.getChildren(_config, thisNode.id).data;
+                item = new CacheItem(currentPath, thisNode);
+                folderCache.Add(item, cachePolicy);
+            }
+            if (folders.Count == 0) 
+                return item.Value as CloudDriveFolder;
+            else
+                return getFolderFromPath(_config, folders, ((CloudDriveFolder)item.Value).id, traverseQueue, folderCache, cachePolicy);
         }
     }
 }
