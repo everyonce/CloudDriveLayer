@@ -23,10 +23,15 @@ namespace CloudDriveLayer.ConfigOperations
         public String cloudMainFolderId { get; set; }
         public MetaDataResponse metaData { get; set; }
         public DateTime lastMetaDataCheck { get; set; }
+        [JsonIgnore]
         private String _appKey;
+        [JsonIgnore]
         private String _appSecret;
+        [JsonIgnore]
         private String _cloudMainFolderName;
+        [JsonIgnore]
         private String _oauthxRedirect;
+        [JsonIgnore]
         private String _oauthxBase;
         public ConfigData()
         {
@@ -45,7 +50,7 @@ namespace CloudDriveLayer.ConfigOperations
         {
             if (this.lastTokenReceived.AddSeconds(this.lastToken.expires_in) < DateTime.Now)
             {
-                if (String.IsNullOrWhiteSpace(this.lastToken.access_token))
+                if (String.IsNullOrWhiteSpace(this.lastToken.refresh_token))
                     waitForAuth(getBrandNewToken());
                 else
                     refreshAccessToken(this.lastToken.refresh_token, _appKey, _appSecret);
@@ -110,7 +115,7 @@ namespace CloudDriveLayer.ConfigOperations
                 "{0}?id={1}&authType=loginWithAmazon&authUrl={2}",
                 _oauthxBase,
                 newId,
-                Convert.ToBase64String(Encoding.Unicode.GetBytes(loginWithAmazonUrl))
+                System.Convert.ToBase64String(Encoding.Unicode.GetBytes(loginWithAmazonUrl))
                 );
             Process.Start(actualUrl);
             return newId;
