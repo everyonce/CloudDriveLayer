@@ -3,8 +3,10 @@ using Newtonsoft.Json.Linq;
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.IO.MemoryMappedFiles;
 using System.Linq;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace CloudDriveLayer.CloudDriveModels
@@ -127,22 +129,72 @@ namespace CloudDriveLayer.CloudDriveModels
     }
     public class FileDownloadStatus
     {
-        public Stream readingStream;
+        public SemaphoreSlim writeLock;
         public Stream writingStream;
         public long lastReqBlockSize;
         public long largestSizeReq;
         public long tempFileMaxReq;
         public String tempFileName;
         public Boolean tempFileDone;
-
+        public MemoryMappedFile mmf;
+        public byte[] mmfKbSegments;
+        public long mmfSize;
         public FileDownloadStatus()
         {
-            readingStream = new MemoryStream();
+            writeLock = new SemaphoreSlim(1,1);
             writingStream = new MemoryStream();
+            mmf = null;
         }
     }
     public class propertySet
     {
 
+    }
+    
+    public class Range<T> where T : IComparable
+    {
+        private readonly T start;
+
+        private readonly T end;
+
+        public Range(T start, T end)
+        {
+            if (start.CompareTo(end) < 0)
+            {
+                this.start = start;
+                this.end = end;
+            }
+            else
+            {
+                this.start = end;
+                this.end = start;
+            }
+        }
+
+        public T Start
+        {
+            get
+            {
+                return this.start;
+            }
+        }
+
+        public T End
+        {
+            get
+            {
+                return this.end;
+            }
+        }
+
+        public static bool Intersect(Range<T> a, Range<T> b)
+        {
+            return !(b.Start.CompareTo(a.End) > 0 || a.Start.CompareTo(b.End) > 0);
+        }
+
+        public bool Intersect(Range<T> other)
+        {
+            return Intersect(this, other);
+        }
     }
 }
