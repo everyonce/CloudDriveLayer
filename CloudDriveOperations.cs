@@ -94,12 +94,12 @@ namespace CloudDriveLayer
         public static CloudDriveListResponse<CloudDriveNode> getChildByName(ConfigOperations.ConfigData config, String parentId, String name)
         {
             if (String.IsNullOrWhiteSpace(parentId) || String.IsNullOrWhiteSpace(name)) return new CloudDriveListResponse<CloudDriveNode>();
-            return listNodeSearchByName(config, "nodes/" + parentId + "/children?filters=name:" + name, name);
+            return listNodeSearchByName(config, "nodes/" + parentId + "/children?filters=name:\"" + name + "\"", name);
         }
         public static CloudDriveListResponse<CloudDriveFolder> getChildFolderByName(ConfigOperations.ConfigData config, String parentId, String name)
         {
             if (String.IsNullOrWhiteSpace(parentId) || String.IsNullOrWhiteSpace(name)) return new CloudDriveListResponse<CloudDriveFolder>();
-            return listFolderSearchByName(config, "nodes/" + parentId + "/children?filters=kind:FOLDER AND name:" + name, name);
+            return listFolderSearchByName(config, "nodes/" + parentId + "/children?filters=kind:FOLDER AND name:\"" + name + "\"", name);
 
         }
         public static CloudDriveListResponse<CloudDriveNode> getChildren(ConfigOperations.ConfigData config, String parentId)
@@ -109,7 +109,7 @@ namespace CloudDriveLayer
         }
         public static CloudDriveListResponse<CloudDriveFolder> getFoldersByName(ConfigOperations.ConfigData config, String name)
         {
-            return listFolderSearchByName(config, "nodes?filters=kind:FOLDER AND name:" + name, name);
+            return listFolderSearchByName(config, "nodes?filters=kind:FOLDER AND name:\"" + name + "\"", name);
         }
         public static CloudDriveListResponse<CloudDriveFolder> getRootFolder(ConfigOperations.ConfigData config)
         {
@@ -125,15 +125,15 @@ namespace CloudDriveLayer
         }
         public static CloudDriveListResponse<CloudDriveFile> getFileByNameAndParentId(ConfigOperations.ConfigData config, String parentId, String name)
         {
-            return listFileSearchByName(config, "nodes/" + parentId + "/children?filters=kind:FILE AND name:" + name, name);
+            return listFileSearchByName(config, "nodes/" + parentId + "/children?filters=kind:FILE AND name:\"" + name + "\"", name);
         }
         public static CloudDriveListResponse<CloudDriveFile> getFilesByName(ConfigOperations.ConfigData config, String name)
         {
-            return listFileSearchByName(config, "nodes?filters=kind:FILE AND name:'" + name + "'", name);
+            return listFileSearchByName(config, "nodes?filters=kind:FILE AND name:\"" + name + "\"", name);
         }
         public static CloudDriveListResponse<CloudDriveFile> getFileByNameAndMd5(ConfigOperations.ConfigData config, String name, String md5)
         {
-            return listFileSearchByName(config, "nodes?filters=kind:FILE AND name:'" + name + "' AND contentProperties.md5:" + md5, name);
+            return listFileSearchByName(config, "nodes?filters=kind:FILE AND name:\"" + name + "\" AND contentProperties.md5:" + md5, name);
         }
         public static CloudDriveFile getFile(ConfigOperations.ConfigData config, String id)
         {
@@ -186,7 +186,6 @@ namespace CloudDriveLayer
                 return String.Empty;
             }
         }
-
         public static String createFolder(ConfigOperations.ConfigData config, string name, string parentId)
         {
             HttpClient reqAccessToken = new HttpClient();
@@ -210,13 +209,10 @@ namespace CloudDriveLayer
             dynamic p = JsonConvert.DeserializeObject(x);
             return p.id;
         }
-
-
         public static void addNodeParent(ConfigOperations.ConfigData config, string nodeId, string parentId)
         {
             nodeChange<CloudDriveFolder>(config, "nodes/" + parentId + "/children/" + nodeId, new StringContent(""));
         }
-
         public static void uploadFileContent(ConfigOperations.ConfigData config, string localFilename, string p)
         {
             throw new NotImplementedException();
