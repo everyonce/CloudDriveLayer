@@ -87,25 +87,25 @@ namespace CloudDriveLayer
             request.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", config.lastToken.access_token);
             return request;
         }
-        public static CloudDriveListResponse<CloudDriveFolder> getFolders(ConfigOperations.ConfigData config, String id)
-        {
-            return listSearch<CloudDriveFolder>(config, id.Length > 0 ? "nodes/" + id + "/children?filters=kind:FOLDER" : "nodes?filters=kind:FOLDER");
-        }
         public static CloudDriveListResponse<CloudDriveNode> getChildByName(ConfigOperations.ConfigData config, String parentId, String name)
         {
             if (String.IsNullOrWhiteSpace(parentId) || String.IsNullOrWhiteSpace(name)) return new CloudDriveListResponse<CloudDriveNode>();
             return listNodeSearchByName(config, "nodes/" + parentId + "/children?filters=name:\"" + name + "\"", name);
+        }
+        public static CloudDriveListResponse<CloudDriveNode> getRootNode(ConfigOperations.ConfigData config)
+        {
+            return listSearch<CloudDriveNode>(config, "nodes?filters=kind:FOLDER AND isRoot:true");
+        }
+        public static CloudDriveListResponse<CloudDriveNode> getChildren(ConfigOperations.ConfigData config, String parentId)
+        {
+            if (String.IsNullOrWhiteSpace(parentId)) return new CloudDriveListResponse<CloudDriveNode>();
+            return listSearch<CloudDriveNode>(config, "nodes/" + parentId + "/children");
         }
         public static CloudDriveListResponse<CloudDriveFolder> getChildFolderByName(ConfigOperations.ConfigData config, String parentId, String name)
         {
             if (String.IsNullOrWhiteSpace(parentId) || String.IsNullOrWhiteSpace(name)) return new CloudDriveListResponse<CloudDriveFolder>();
             return listFolderSearchByName(config, "nodes/" + parentId + "/children?filters=kind:FOLDER AND name:\"" + name + "\"", name);
 
-        }
-        public static CloudDriveListResponse<CloudDriveNode> getChildren(ConfigOperations.ConfigData config, String parentId)
-        {
-            if (String.IsNullOrWhiteSpace(parentId)) return new CloudDriveListResponse<CloudDriveNode>();
-            return listSearch<CloudDriveNode>(config, "nodes/" + parentId + "/children");
         }
         public static CloudDriveListResponse<CloudDriveFolder> getFoldersByName(ConfigOperations.ConfigData config, String name)
         {
@@ -115,13 +115,9 @@ namespace CloudDriveLayer
         {
             return listSearch<CloudDriveFolder>(config, "nodes?filters=kind:FOLDER AND isRoot:true");
         }
-        public static CloudDriveListResponse<CloudDriveNode> getRootNode(ConfigOperations.ConfigData config)
+        public static CloudDriveListResponse<CloudDriveFolder> getFolders(ConfigOperations.ConfigData config, String id)
         {
-            return listSearch<CloudDriveNode>(config, "nodes?filters=kind:FOLDER AND isRoot:true");
-        }
-        public static CloudDriveFolder getFolder(ConfigOperations.ConfigData config, String id)
-        {
-            return nodeSearch<CloudDriveFolder>(config, "nodes/" + id);
+            return listSearch<CloudDriveFolder>(config, id.Length > 0 ? "nodes/" + id + "/children?filters=kind:FOLDER" : "nodes?filters=kind:FOLDER");
         }
         public static CloudDriveListResponse<CloudDriveFile> getFileByNameAndParentId(ConfigOperations.ConfigData config, String parentId, String name)
         {
@@ -138,6 +134,79 @@ namespace CloudDriveLayer
         public static CloudDriveFile getFile(ConfigOperations.ConfigData config, String id)
         {
             return nodeSearch<CloudDriveFile>(config, "nodes/" + id);
+        }
+        public static CloudDriveFile _getFileFromPath(ConfigOperations.ConfigData _config, Queue<String> folders, string findFromId, List<String> traverseQueue, MemoryCache folderCache, CacheItemPolicy cachePolicy)
+        {
+            try
+            {
+                var currentFolder = folders.Dequeue();
+                traverseQueue.Add(currentFolder);
+                var currentPath = String.Join("\\", traverseQueue);
+                CacheItem item = folderCache.GetCacheItem(currentPath);
+                if (item == null)
+                {
+                    CloudDriveListResponse<CloudDriveNode> SearchResults;
+                    if (currentFolder == "Root") SearchResults = getRootNode(_config);
+                    else SearchResults = CloudDriveOperations.getChildByName(_config, findFromId, currentFolder);
+                    if (SearchResults == null || SearchResults.count == 0)
+                        return null;
+                    CloudDriveNode thisNode = SearchResults.data[0];
+                    if (thisNode.kind == "FOLDER")
+                    {
+                        CloudDriveFolder x = CloudDriveModels.Convert.createCloudDriveFolder(thisNode);
+                        var findChildren = CloudDriveOperations.getChildren(_config, thisNode.id);
+                        if (findChildren.count > 0)
+                            x.children = findChildren.data;
+                        item = new CacheItem(currentPath, x);
+                        folderCache.Add(item, cachePolicy);
+                    }
+                    else
+                    {
+                        CloudDriveFile x = CloudDriveModels.Convert.createCloudDriveFile(thisNode);
+                        item = new CacheItem(currentPath, x);
+                        folderCache.Add(item, cachePolicy);
+                    }
+                }
+                if (folders.Count == 0)
+                    return (CloudDriveFile)item.Value;
+                else
+                    return _getFileFromPath(_config, folders, ((CloudDriveNode)item.Value).id, traverseQueue, folderCache, cachePolicy);
+            }
+            catch (Exception e)
+            {
+                Console.WriteLine("Exception {0}", e.Message);
+                return null;
+            }
+        }
+        public static CloudDriveFile getFileFromPath(ConfigOperations.ConfigData config, String filename, String TopDirectoryId, MemoryCache folderCache, CacheItemPolicy cachePolicy)
+        {
+            var folderList = new Queue<String>();
+            folderList.Enqueue("Root");
+            foreach (string folder in filename.Split(new char[] { Path.DirectorySeparatorChar }, StringSplitOptions.RemoveEmptyEntries))
+                folderList.Enqueue(folder);
+            return CloudDriveOperations._getFileFromPath(config, folderList, TopDirectoryId, new List<String>(), folderCache, cachePolicy);
+        }
+        public static CloudDriveFolder getFolder(ConfigOperations.ConfigData config, String id)
+        {
+            return nodeSearch<CloudDriveFolder>(config, "nodes/" + id);
+        }
+        public static CloudDriveFolder getFolderFromPath(ConfigOperations.ConfigData _config, Queue<String> folders, string findFromId, List<String> traverseQueue, MemoryCache folderCache, CacheItemPolicy cachePolicy)
+        {
+            var currentFolder = folders.Dequeue();
+            traverseQueue.Add(currentFolder);
+            var currentPath = String.Join("\\", traverseQueue);
+            CacheItem item = folderCache.GetCacheItem(currentPath);
+            if (item == null)
+            {
+                CloudDriveFolder thisNode = (CloudDriveFolder)CloudDriveOperations.getChildFolderByName(_config, findFromId, currentFolder).data[0];
+                thisNode.children = CloudDriveOperations.getChildren(_config, thisNode.id).data;
+                item = new CacheItem(currentPath, thisNode);
+                folderCache.Add(item, cachePolicy);
+            }
+            if (folders.Count == 0)
+                return item.Value as CloudDriveFolder;
+            else
+                return getFolderFromPath(_config, folders, ((CloudDriveFolder)item.Value).id, traverseQueue, folderCache, cachePolicy);
         }
         public static Task<Stream> getFileContents(ConfigOperations.ConfigData config, String id, RangeItemHeaderValue range)
         {
@@ -217,24 +286,6 @@ namespace CloudDriveLayer
         {
             throw new NotImplementedException();
         }
-        public static CloudDriveFolder getFolderFromPath(ConfigOperations.ConfigData _config, Queue<String> folders, string findFromId, List<String> traverseQueue, MemoryCache folderCache, CacheItemPolicy cachePolicy)
-        {
-            var currentFolder = folders.Dequeue();
-            traverseQueue.Add(currentFolder);
-            var currentPath = String.Join("\\", traverseQueue);
-            CacheItem item = folderCache.GetCacheItem(currentPath);
-            if (item == null)
-            {
-                CloudDriveFolder thisNode = (CloudDriveFolder)CloudDriveOperations.getChildFolderByName(_config, findFromId, currentFolder).data[0];
-                thisNode.children = CloudDriveOperations.getChildren(_config, thisNode.id).data;
-                item = new CacheItem(currentPath, thisNode);
-                folderCache.Add(item, cachePolicy);
-            }
-            if (folders.Count == 0) 
-                return item.Value as CloudDriveFolder;
-            else
-                return getFolderFromPath(_config, folders, ((CloudDriveFolder)item.Value).id, traverseQueue, folderCache, cachePolicy);
-        }
         public static T _getNodeFromPath<T>(ConfigOperations.ConfigData _config, Queue<String> folders, string findFromId, List<String> traverseQueue, MemoryCache folderCache, CacheItemPolicy cachePolicy)
         {
             try
@@ -284,60 +335,5 @@ namespace CloudDriveLayer
                 folderList.Enqueue(folder);
             return CloudDriveOperations._getNodeFromPath<T>(config, folderList, TopDirectoryId, new List<String>(), folderCache, cachePolicy);
         }
-
-        public static CloudDriveFile _getFileFromPath(ConfigOperations.ConfigData _config, Queue<String> folders, string findFromId, List<String> traverseQueue, MemoryCache folderCache, CacheItemPolicy cachePolicy)
-        {
-            try
-            {
-                var currentFolder = folders.Dequeue();
-                traverseQueue.Add(currentFolder);
-                var currentPath = String.Join("\\", traverseQueue);
-                CacheItem item = folderCache.GetCacheItem(currentPath);
-                if (item == null)
-                {
-                    CloudDriveListResponse<CloudDriveNode> SearchResults;
-                    if (currentFolder == "Root") SearchResults = getRootNode(_config);
-                    else SearchResults = CloudDriveOperations.getChildByName(_config, findFromId, currentFolder);
-                    if (SearchResults == null || SearchResults.count == 0)
-                        return null;
-                    CloudDriveNode thisNode = SearchResults.data[0];
-                    if (thisNode.kind == "FOLDER")
-                    {
-                        CloudDriveFolder x = CloudDriveModels.Convert.createCloudDriveFolder(thisNode);
-                        var findChildren = CloudDriveOperations.getChildren(_config, thisNode.id);
-                        if (findChildren.count > 0)
-                            x.children = findChildren.data;
-                        item = new CacheItem(currentPath, x);
-                        folderCache.Add(item, cachePolicy);
-                    }
-                    else
-                    {
-                        CloudDriveFile x = CloudDriveModels.Convert.createCloudDriveFile(thisNode);
-                        item = new CacheItem(currentPath, x);
-                        folderCache.Add(item, cachePolicy);
-                    }
-                }
-                if (folders.Count == 0)
-                    return (CloudDriveFile)item.Value;
-                else
-                    return _getFileFromPath(_config, folders, ((CloudDriveNode)item.Value).id, traverseQueue, folderCache, cachePolicy);
-            }
-            catch (Exception e)
-            {
-                Console.WriteLine("Exception {0}", e.Message);
-                return null;
-            }
-        }
-        public static CloudDriveFile getFileFromPath(ConfigOperations.ConfigData config, String filename, String TopDirectoryId, MemoryCache folderCache, CacheItemPolicy cachePolicy)
-        {
-            var folderList = new Queue<String>();
-            folderList.Enqueue("Root");
-            foreach (string folder in filename.Split(new char[] { Path.DirectorySeparatorChar }, StringSplitOptions.RemoveEmptyEntries))
-                folderList.Enqueue(folder);
-            return CloudDriveOperations._getFileFromPath(config, folderList, TopDirectoryId, new List<String>(), folderCache, cachePolicy);
-        }
-
-
-
     }
 }
