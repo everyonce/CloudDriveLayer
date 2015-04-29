@@ -93,16 +93,8 @@ namespace CloudDriveLayer.ConfigOperations
         }
         private void getRootFolderId()
         {
-            CloudDriveFolder x = CloudDriveOperations.getFolders(this, "").data[0];
-            String newParent = x.parents[0];
-            while (String.IsNullOrWhiteSpace(this.rootFolderId))
-            {
-                CloudDriveFolder y = CloudDriveOperations.getFolder(this, newParent);
-                if (y.parents.Count > 0)
-                    newParent = y.parents[0];
-                else
-                    this.rootFolderId = y.id;
-            }
+            CloudDriveFolder x = CloudDriveOperations.getRootFolder(this).data[0];
+            this.rootFolderId = x.id;
         }
         private String getBrandNewToken()
         {
@@ -168,7 +160,7 @@ namespace CloudDriveLayer.ConfigOperations
             return response.Content.ReadAsStringAsync().Result;
 
         }
-        private void refreshAccessToken(string refresh_token, string key, string secret)
+        public void refreshAccessToken(string refresh_token, string key, string secret)
         {
             HttpClient reqAccessToken = new HttpClient();
             Dictionary<String, String> reqParams = new Dictionary<String, String>();

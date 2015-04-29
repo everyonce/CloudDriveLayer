@@ -130,7 +130,7 @@ namespace CloudDriveLayer.CloudDriveModels
     public class FileDownloadStatus
     {
         public SemaphoreSlim writeLock;
-        public Stream writingStream;
+       // public Stream writingStream;
         public long lastReqBlockSize;
         public long largestSizeReq;
         public long tempFileMaxReq;
@@ -142,7 +142,7 @@ namespace CloudDriveLayer.CloudDriveModels
         public FileDownloadStatus()
         {
             writeLock = new SemaphoreSlim(1,1);
-            writingStream = new MemoryStream();
+            //writingStream = new MemoryStream();
             mmf = null;
         }
     }

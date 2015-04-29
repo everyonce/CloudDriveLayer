@@ -19,7 +19,7 @@ namespace CloudDriveLayer
     {
         public class RetryHandler : DelegatingHandler
         {
-            private const int MaxRetries = 3;
+            private const int MaxRetries = 10;
             public RetryHandler(HttpMessageHandler innerHandler)
                 : base(innerHandler)
             { }
@@ -34,16 +34,28 @@ namespace CloudDriveLayer
                     if (response.IsSuccessStatusCode)
                         return response;
                     else
-                        Console.WriteLine("needing to retry");
+                        Console.WriteLine("needing to retry {0}: {1}", i, response.ReasonPhrase);
                 }
                 return response;
             }
         }
         public static CloudDriveListResponse<T> listSearch<T>(ConfigOperations.ConfigData config, String command)
         {
-            HttpClient request = createAuthenticatedClient(config, config.metaData.metadataUrl);
-            String mycontent = request.GetStringAsync(command).Result;
-            return JsonConvert.DeserializeObject<CloudDriveListResponse<T>>(mycontent);
+            CloudDriveListResponse<T> currentResult, totalResult=null;
+            String nextToken=String.Empty;
+            do
+            {
+                HttpClient request = createAuthenticatedClient(config, config.metaData.metadataUrl);
+                String mycontent = request.GetStringAsync(command + (String.IsNullOrWhiteSpace(nextToken)?String.Empty:"&startToken="+nextToken)).Result;
+                currentResult = JsonConvert.DeserializeObject<CloudDriveListResponse<T>>(mycontent);
+                if (totalResult==null)
+                    totalResult = currentResult;
+                else
+                    totalResult.data.AddRange(currentResult.data);
+                nextToken = currentResult.nextToken;
+                Console.WriteLine("Paging: {0}/{1}", totalResult.data.Count, totalResult.count);
+            } while (currentResult.data.Count > 0 && !String.IsNullOrWhiteSpace(nextToken));
+            return totalResult;
         }
         public static CloudDriveListResponse<CloudDriveFolder> listFolderSearchByName(ConfigOperations.ConfigData config, String command, String name)
         {
@@ -68,9 +80,17 @@ namespace CloudDriveLayer
         }
         public static T nodeSearch<T>(ConfigOperations.ConfigData config, String command)
         {
-            HttpClient request = createAuthenticatedClient(config, config.metaData.metadataUrl);
-            String mycontent = request.GetStringAsync(command).Result;
-            return JsonConvert.DeserializeObject<T>(mycontent);
+            using (HttpClient request = createAuthenticatedClient(config, config.metaData.metadataUrl))
+            {
+                do
+                {
+                    Task<String> mycontent = request.GetStringAsync(command);
+                    if (!mycontent.IsCanceled && !mycontent.IsFaulted)
+                        return JsonConvert.DeserializeObject<T>(mycontent.Result);
+                    Console.WriteLine("Request was cancelled, waiting to retry: {0}", command);
+                    Thread.Sleep(500);
+                } while (true);
+            }
         }
         public static T nodeChange<T>(ConfigOperations.ConfigData config, String command, HttpContent body)
         {
@@ -95,6 +115,10 @@ namespace CloudDriveLayer
         public static CloudDriveListResponse<CloudDriveNode> getRootNode(ConfigOperations.ConfigData config)
         {
             return listSearch<CloudDriveNode>(config, "nodes?filters=kind:FOLDER AND isRoot:true");
+        }
+        public static CloudDriveListResponse<CloudDriveFile> getAllFiles(ConfigOperations.ConfigData config)
+        {
+            return listSearch<CloudDriveFile>(config, "nodes?filters=kind:FILE");
         }
         public static CloudDriveListResponse<CloudDriveNode> getChildren(ConfigOperations.ConfigData config, String parentId)
         {
@@ -235,19 +259,29 @@ namespace CloudDriveLayer
                 form.Add(fileStreamContent, "content", Path.GetFileName(fullFilePath));
 
                 HttpClient request = createAuthenticatedClient(config, config.metaData.contentUrl);
-                request.Timeout = new TimeSpan(3,0,0);
+                request.Timeout = new TimeSpan(0,2,0);
                 var postAsync = request.PostAsync("nodes" + (force ? "?suppress=deduplication":""), form);
                 while (!postAsync.IsCompleted)
                 {
-                    if (file.CanRead) Console.WriteLine("{0}: {1:P2} uploaded ({2}/{3})", Path.GetFileName(fullFilePath),(double)file.Position/(double)file.Length, file.Position, file.Length);
+                    if (file.CanRead)
+                        Console.WriteLine("{0}: {1:P2} uploaded ({2}/{3})", Path.GetFileName(fullFilePath), (double)file.Position / (double)file.Length, file.Position, file.Length);
+                    else
+                        Console.WriteLine("Can't read file: {0}", fullFilePath);
                     Thread.Sleep(5000);
                 }
                 Console.WriteLine("{0}: uploaded", Path.GetFileName(fullFilePath));
-
+                if (postAsync.IsCanceled || postAsync.IsFaulted)
+                {
+                    String message ="";
+                    if (postAsync.Exception != null) message = postAsync.Exception.Message;
+                    Console.WriteLine("upload POST was cancelled!  Retry later: {0}", message );
+                    return String.Empty;
+                }
                 HttpResponseMessage result = postAsync.Result;
                 if (result.StatusCode == HttpStatusCode.Conflict)
                 {
                     String errorMessage = result.Content.ReadAsStringAsync().Result;
+                    Console.WriteLine("upload POST was cancelled!  Retry later");
                     return String.Empty;
                 }
                 if (result.StatusCode == HttpStatusCode.Created)
