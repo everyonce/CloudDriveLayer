@@ -11,6 +11,7 @@ using System.Runtime.Caching;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Web;
 
 
 namespace CloudDriveLayer
@@ -35,6 +36,7 @@ namespace CloudDriveLayer
                         return response;
                     else
                         Console.WriteLine("needing to retry {0}: {1}", i, response.ReasonPhrase);
+                    //TODO handle unauthorized here?
                 }
                 return response;
             }
@@ -46,7 +48,7 @@ namespace CloudDriveLayer
             do
             {
                 HttpClient request = createAuthenticatedClient(config, config.metaData.metadataUrl);
-                String mycontent = request.GetStringAsync(command + (String.IsNullOrWhiteSpace(nextToken)?String.Empty:"&startToken="+nextToken)).Result;
+                String mycontent = request.GetStringAsync((String.IsNullOrWhiteSpace(nextToken)?command:"nodes?startToken="+nextToken)).Result;
                 currentResult = JsonConvert.DeserializeObject<CloudDriveListResponse<T>>(mycontent);
                 if (totalResult==null)
                     totalResult = currentResult;
@@ -110,7 +112,7 @@ namespace CloudDriveLayer
         public static CloudDriveListResponse<CloudDriveNode> getChildByName(ConfigOperations.ConfigData config, String parentId, String name)
         {
             if (String.IsNullOrWhiteSpace(parentId) || String.IsNullOrWhiteSpace(name)) return new CloudDriveListResponse<CloudDriveNode>();
-            return listNodeSearchByName(config, "nodes/" + parentId + "/children?filters=name:\"" + name + "\"", name);
+            return listNodeSearchByName(config, "nodes/" + parentId + "/children?filters=name:\"" + HttpUtility.UrlEncode(name) + "\"", name);
         }
         public static CloudDriveListResponse<CloudDriveNode> getRootNode(ConfigOperations.ConfigData config)
         {
@@ -128,12 +130,12 @@ namespace CloudDriveLayer
         public static CloudDriveListResponse<CloudDriveFolder> getChildFolderByName(ConfigOperations.ConfigData config, String parentId, String name)
         {
             if (String.IsNullOrWhiteSpace(parentId) || String.IsNullOrWhiteSpace(name)) return new CloudDriveListResponse<CloudDriveFolder>();
-            return listFolderSearchByName(config, "nodes/" + parentId + "/children?filters=kind:FOLDER AND name:\"" + name + "\"", name);
+            return listFolderSearchByName(config, "nodes/" + parentId + "/children?filters=kind:FOLDER AND name:\"" + HttpUtility.UrlEncode(name) + "\"", name);
 
         }
         public static CloudDriveListResponse<CloudDriveFolder> getFoldersByName(ConfigOperations.ConfigData config, String name)
         {
-            return listFolderSearchByName(config, "nodes?filters=kind:FOLDER AND name:\"" + name + "\"", name);
+            return listFolderSearchByName(config, "nodes?filters=kind:FOLDER AND name:\"" + HttpUtility.UrlEncode(name) + "\"", name);
         }
         public static CloudDriveListResponse<CloudDriveFolder> getRootFolder(ConfigOperations.ConfigData config)
         {
@@ -145,15 +147,15 @@ namespace CloudDriveLayer
         }
         public static CloudDriveListResponse<CloudDriveFile> getFileByNameAndParentId(ConfigOperations.ConfigData config, String parentId, String name)
         {
-            return listFileSearchByName(config, "nodes/" + parentId + "/children?filters=kind:FILE AND name:\"" + name + "\"", name);
+            return listFileSearchByName(config, "nodes/" + parentId + "/children?filters=kind:FILE AND name:\"" + HttpUtility.UrlEncode(name) + "\"", name);
         }
         public static CloudDriveListResponse<CloudDriveFile> getFilesByName(ConfigOperations.ConfigData config, String name)
         {
-            return listFileSearchByName(config, "nodes?filters=kind:FILE AND name:\"" + name + "\"", name);
+            return listFileSearchByName(config, "nodes?filters=kind:FILE AND name:\"" + HttpUtility.UrlEncode(name) + "\"", name);
         }
         public static CloudDriveListResponse<CloudDriveFile> getFileByNameAndMd5(ConfigOperations.ConfigData config, String name, String md5)
         {
-            return listFileSearchByName(config, "nodes?filters=kind:FILE AND name:\"" + name + "\" AND contentProperties.md5:" + md5, name);
+            return listFileSearchByName(config, "nodes?filters=kind:FILE AND name:\"" + HttpUtility.UrlEncode(name) + "\" AND contentProperties.md5:" + md5, name);
         }
         public static CloudDriveFile getFile(ConfigOperations.ConfigData config, String id)
         {
