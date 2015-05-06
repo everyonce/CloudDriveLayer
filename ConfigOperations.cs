@@ -24,15 +24,15 @@ namespace CloudDriveLayer.ConfigOperations
         public MetaDataResponse metaData { get; set; }
         public DateTime lastMetaDataCheck { get; set; }
         [JsonIgnore]
-        private String _appKey;
+        public String _appKey;
         [JsonIgnore]
-        private String _appSecret;
+        public String _appSecret;
         [JsonIgnore]
-        private String _cloudMainFolderName;
+        public String _cloudMainFolderName;
         [JsonIgnore]
-        private String _oauthxRedirect;
+        public String _oauthxRedirect;
         [JsonIgnore]
-        private String _oauthxBase;
+        public String _oauthxBase;
         public ConfigData()
         {
             lastToken = new AuthTokenResponse();

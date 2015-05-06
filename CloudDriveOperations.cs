@@ -2,6 +2,7 @@
 using Newtonsoft.Json;
 using System;
 using System.Collections.Generic;
+using System.Configuration;
 using System.IO;
 using System.Linq;
 using System.Net;
@@ -17,12 +18,31 @@ namespace CloudDriveLayer
 {
     public static class CloudDriveOperations
     {
+
+        public static T retryCloudDriveRequest<T>(Task<T> myTask)
+        {
+            int retryCount = 0;
+            while (true)
+            {
+                try
+                {
+                    return myTask.Result;
+                }
+                catch (Exception e)
+                {
+                    Console.WriteLine("Request was cancelled/faulted, waiting to retry: {0}: {1} {2}", retryCount, e.Message);
+                }
+            }
+        }
         public class RetryHandler : DelegatingHandler
         {
             private const int MaxRetries = 10;
-            public RetryHandler(HttpMessageHandler innerHandler)
+            ConfigOperations.ConfigData _config = null;
+            public RetryHandler(ConfigOperations.ConfigData config, HttpMessageHandler innerHandler)
                 : base(innerHandler)
-            { }
+            {
+                _config = config;
+            }
             protected override async Task<HttpResponseMessage> SendAsync(
                 HttpRequestMessage request,
                 CancellationToken cancellationToken)
@@ -34,7 +54,15 @@ namespace CloudDriveLayer
                     if (response.IsSuccessStatusCode)
                         return response;
                     else
-                        Console.WriteLine("needing to retry {0}: {1}", i, response.ReasonPhrase);
+                    {
+                        Console.WriteLine("needing to retry {0}: {1} {2}", i, response.ReasonPhrase, request.Method);
+                        if (response.StatusCode == HttpStatusCode.Unauthorized)
+                        {
+                            _config.refreshAccessToken(_config.lastToken.refresh_token, _config._appKey, _config._appSecret);
+                            File.WriteAllText(ConfigurationManager.AppSettings["jsonConfig"], JsonConvert.SerializeObject(_config));
+                            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _config.lastToken.access_token);
+                        }
+                    }
                 }
                 return response;
             }
@@ -45,9 +73,12 @@ namespace CloudDriveLayer
             String nextToken=String.Empty;
             do
             {
+                
                 HttpClient request = createAuthenticatedClient(config, config.metaData.metadataUrl);
-                String mycontent = request.GetStringAsync(command + (String.IsNullOrWhiteSpace(nextToken)?String.Empty:"&startToken="+nextToken)).Result;
-                currentResult = JsonConvert.DeserializeObject<CloudDriveListResponse<T>>(mycontent);
+                String getListResult = retryCloudDriveRequest<String>(
+                        request.GetStringAsync(command + (String.IsNullOrWhiteSpace(nextToken) ? String.Empty : "&startToken=" + nextToken))
+                     );
+                currentResult = JsonConvert.DeserializeObject<CloudDriveListResponse<T>>(getListResult);
                 if (totalResult==null)
                     totalResult = currentResult;
                 else
@@ -82,6 +113,7 @@ namespace CloudDriveLayer
         {
             using (HttpClient request = createAuthenticatedClient(config, config.metaData.metadataUrl))
             {
+                int j = 0;
                 do
                 {
                     Task<String> mycontent = request.GetStringAsync(command);
@@ -89,8 +121,10 @@ namespace CloudDriveLayer
                         return JsonConvert.DeserializeObject<T>(mycontent.Result);
                     Console.WriteLine("Request was cancelled, waiting to retry: {0}", command);
                     Thread.Sleep(500);
-                } while (true);
+                } while (j++<10);
             }
+            Console.WriteLine("Did 10 retries for cancel/fault, giving up");
+            return default(T);
         }
         public static T nodeChange<T>(ConfigOperations.ConfigData config, String command, HttpContent body)
         {
@@ -102,7 +136,7 @@ namespace CloudDriveLayer
         }
         public static HttpClient createAuthenticatedClient(ConfigOperations.ConfigData config, String url)
         {
-            HttpClient request = new HttpClient(new RetryHandler(new HttpClientHandler()));
+            HttpClient request = new HttpClient(new RetryHandler(config, new HttpClientHandler()));
             request.BaseAddress = new Uri(url);
             request.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", config.lastToken.access_token);
             return request;
@@ -250,12 +284,11 @@ namespace CloudDriveLayer
             Dictionary<string, Object> addNode = new Dictionary<string, Object>() { { "name", Path.GetFileName(fullFilePath) }, { "kind", "FILE" }, {"parents",parentList} };
             String myMetaData = JsonConvert.SerializeObject(addNode, Newtonsoft.Json.Formatting.None, new JsonSerializerSettings { NullValueHandling = NullValueHandling.Ignore, });
             using (FileStream file = File.Open(fullFilePath, FileMode.Open, FileAccess.Read))
+            using (StreamContent fileStreamContent = new StreamContent(file))
             {
                 MultipartFormDataContent form = new MultipartFormDataContent();
-                form.Add(new StringContent(myMetaData), "metadata");
-
-                var fileStreamContent = new StreamContent(file);
                 fileStreamContent.Headers.ContentType = new MediaTypeHeaderValue(MimeTypeMap.MimeTypeMap.GetMimeType(Path.GetExtension(fullFilePath)));
+                form.Add(new StringContent(myMetaData), "metadata");
                 form.Add(fileStreamContent, "content", Path.GetFileName(fullFilePath));
 
                 HttpClient request = createAuthenticatedClient(config, config.metaData.contentUrl);
@@ -263,13 +296,17 @@ namespace CloudDriveLayer
                 var postAsync = request.PostAsync("nodes" + (force ? "?suppress=deduplication":""), form);
                 while (!postAsync.IsCompleted)
                 {
-                    if (file.CanRead)
+                    try
+                    {
                         Console.WriteLine("{0}: {1:P2} uploaded ({2}/{3})", Path.GetFileName(fullFilePath), (double)file.Position / (double)file.Length, file.Position, file.Length);
-                    else
-                        Console.WriteLine("Can't read file: {0}", fullFilePath);
+                    }
+                    catch (ObjectDisposedException e)
+                    {
+                        Console.WriteLine("Can't read file: {0}, error: {1}", fullFilePath, e.Message);
+                        return String.Empty;
+                    }
                     Thread.Sleep(5000);
                 }
-                Console.WriteLine("{0}: uploaded", Path.GetFileName(fullFilePath));
                 if (postAsync.IsCanceled || postAsync.IsFaulted)
                 {
                     String message ="";
@@ -284,6 +321,7 @@ namespace CloudDriveLayer
                     Console.WriteLine("upload POST was cancelled!  Retry later");
                     return String.Empty;
                 }
+                Console.WriteLine("{0}: uploaded", Path.GetFileName(fullFilePath));
                 if (result.StatusCode == HttpStatusCode.Created)
                     return JsonConvert.DeserializeObject<CloudDriveNode>(result.Content.ReadAsStringAsync().Result).id;
                 return String.Empty;
@@ -297,8 +335,6 @@ namespace CloudDriveLayer
 
             reqParams.Add("name", name);
             reqParams.Add("kind", "FOLDER");
-            //reqParams.Add("labels", "");
-            //reqParams.Add("properties", "");
             var parentList = new List<String>();
             parentList.Add(parentId);
             reqParams.Add("parents", parentList);
