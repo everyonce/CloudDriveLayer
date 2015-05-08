@@ -23,6 +23,7 @@ namespace CloudDriveLayer.ConfigOperations
         public String cloudMainFolderId { get; set; }
         public MetaDataResponse metaData { get; set; }
         public DateTime lastMetaDataCheck { get; set; }
+        public DateTime lastNodeCheck { get; set; }
         [JsonIgnore]
         public String _appKey;
         [JsonIgnore]
@@ -33,6 +34,8 @@ namespace CloudDriveLayer.ConfigOperations
         public String _oauthxRedirect;
         [JsonIgnore]
         public String _oauthxBase;
+        [JsonIgnore]
+        public Action saveConfig {get; set;}
         public ConfigData()
         {
             lastToken = new AuthTokenResponse();
@@ -46,7 +49,7 @@ namespace CloudDriveLayer.ConfigOperations
             _oauthxRedirect = oauthXRedirect;
             _oauthxBase = oauthXBase;
         }
-        public void updateTokens(Action saveConfig)
+        public void updateTokens()
         {
             if (this.lastTokenReceived.AddSeconds(this.lastToken.expires_in) < DateTime.Now)
             {
@@ -62,9 +65,9 @@ namespace CloudDriveLayer.ConfigOperations
                 saveConfig();
             }
         }
-        public void updateConfig(Action saveConfig)
+        public void updateConfig()
         {
-            updateTokens(saveConfig);
+            updateTokens();
 
             if (lastMetaDataCheck.AddDays(3) < DateTime.Now)
                 getMetaDataUrl();
